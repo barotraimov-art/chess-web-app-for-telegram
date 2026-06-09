@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Chess 1v1 & AI</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <style>
+        body {
+            background-color: #1c1c1c;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #lang-container, #menu-container {
+            text-align: center;
+        }
+        #menu-container {
+            display: none;
+        }
+        .menu-btn {
+            display: block;
+            width: 250px;
+            padding: 15px;
+            margin: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background-color: #3498db;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .menu-btn.two-p {
+            background-color: #2ecc71;
+        }
+        .menu-btn.lang-btn {
+            background-color: #f39c12;
+        }
+        #game-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        #board {
+            width: 90vw;
+            max-width: 400px;
+            margin-bottom: 20px;
+        }
+        .status-box {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+            background: #2d2d2d;
+            border-radius: 8px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Til tanlash bo'limi -->
+    <div id="lang-container">
+        <h2>🌐 Tilni tanlang / Выберите язык / Select Language:</h2>
+        <button class="menu-btn lang-btn" onclick="selectLanguage('uz')">Oʻzbekcha 🇺🇿</button>
+        <button class="menu-btn lang-btn" onclick="selectLanguage('ru')">Русский 🇷🇺</button>
+        <button class="menu-btn lang-btn" onclick="selectLanguage('en')">English 🇬🇧</button>
+    </div>
+
+    <!-- Rejim tanlash bo'limi -->
+    <div id="menu-container">
+        <h2 id="menu-title">♟️ Rejimni tanlang:</h2>
+        <button class="menu-btn" id="btn-ai" onclick="startGame('ai')">🤖 Robotga qarshi (1 kishi)</button>
+        <button class="menu-btn two-p" id="btn-2p" onclick="startGame('2p')">👥 Doʻst bilan (2 kishi)</button>
+    </div>
+
+    <div id="game-container">
+        <div id="board"></div>
+        <div class="status-box" id="status">Tayyorlanmoqda...</div>
+    </div>
+
+    <script>
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.expand();
+        }
+
+        var board = null;
+        var game = new Chess();
+        var $status = $('#status');
+        var gameMode = '2p'; 
+        var currentLang = 'uz'; // Standart til
+
+        // Tarjimalar bazasi
+        const translations = {
+            uz: {
+                title: "♟️ Rejimni tanlang:",
+                ai_btn: "🤖 Robotga qarshi (1 kishi)",
+                p2_btn: "👥 Doʻst bilan (2 kishi)",
+                ready: "Tayyorlanmoqda...",
+                your_turn_w: "Sizning navbatingiz (Oqlar)",
+                your_turn_b: "Sizning navbatingiz (Qoralar)",
+                ai_thinking: "Robot oʻylamoqda...",turn_w: "Oqlarning navbati",
+                turn_b: "Qoralarning navbati",
+                check: " (SHOH!)",
+                checkmate: "Oʻyin tugadi. {color} mot boʻldi!",
+                draw: "Oʻyin tugadi. Durang!",
+                white: "Oqlar",
+                black: "Qoralar"
+            },
+            ru: {
+                title: "♟️ Выберите режим:",
+                ai_btn: "🤖 Против робота (1 игрок)",
+                p2_btn: "👥 С другом (2 игрока)",
+                ready: "Подготовка...",
+                your_turn_w: "Ваш ход (Белые)",
+                your_turn_b: "Ваш ход (Черные)",
+                ai_thinking: "Робот думает...",
+                turn_w: "Ход Белых",
+                turn_b: "Ход Черных",
+                check: " (ШАХ!)",
+                checkmate: "Игра окончена. {color} получили мат!",
+                draw: "Игра окончена. Ничья!",
+                white: "Белые",
+                black: "Черные"
+            },
+            en: {
+                title: "♟️ Select Mode:",
+                ai_btn: "🤖 Versus Robot (1 Player)",
+                p2_btn: "👥 With Friend (2 Players)",
+                ready: "Preparing...",
+                your_turn_w: "Your Turn (White)",
+                your_turn_b: "Your Turn (Black)",
+                ai_thinking: "Robot is thinking...",
+                turn_w: "White's Turn",
+                turn_b: "Black's Turn",
+                check: " (CHECK!)",
+                checkmate: "Game over. {color} is checkmated!",
+                draw: "Game over. Draw!",
+                white: "White",
+                black: "Black"
+            }
+        };
+
+        function selectLanguage(lang) {
+            currentLang = lang;
+            
+            // Matnlarni tanlangan tilga o'zgartirish
+            document.getElementById('menu-title').innerText = translations[lang].title;
+            document.getElementById('btn-ai').innerText = translations[lang].ai_btn;
+            document.getElementById('btn-2p').innerText = translations[lang].p2_btn;
+            document.getElementById('status').innerText = translations[lang].ready;
+
+            // Til oynasini yopib, rejim tanlashni ochish
+            document.getElementById('lang-container').style.display = 'none';
+            document.getElementById('menu-container').style.display = 'block';
+        }
+
+        function startGame(mode) {
+            gameMode = mode;
+            document.getElementById('menu-container').style.display = 'none';
+            document.getElementById('game-container').style.display = 'flex';
+            
+            var config = {
+                draggable: true,
+                position: 'start',
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd,
+                pieceTheme: 'https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/img/chesspieces/wikipedia/{piece}.png'
+            };
+            board = Chessboard('board', config);
+            updateStatus();
+        }
+
+        function makeRandomMove() {
+            var possibleMoves = game.moves();
+            if (game.game_over() || possibleMoves.length === 0) return;
+
+            var randomIdx = Math.floor(Math.random() * possibleMoves.length);
+            game.move(possibleMoves[randomIdx]);
+            board.position(game.fen());
+            updateStatus();
+        }
+
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+
+            if (gameMode === 'ai' && piece.search(/^b/) !== -1) return false;
+
+            if (gameMode === '2p') {
+                if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                    (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                    return false;
+                }
+            }
+        }
+
+        function onDrop (source, target) {
+            var move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+
+            if (move === null) return 'snapback';updateStatus();
+
+            if (gameMode === 'ai' && game.turn() === 'b') {
+                window.setTimeout(makeRandomMove, 250);
+            }
+        }
+
+        function onSnapEnd () {
+            board.position(game.fen());
+        }
+
+        function updateStatus () {
+            var status = '';
+            var t = translations[currentLang];
+            var moveColor = (game.turn() === 'w') ? t.white : t.black;
+
+            if (game.in_checkmate()) {
+                status = t.checkmate.replace('{color}', moveColor);
+            } else if (game.in_draw()) {
+                status = t.draw;
+            } else {
+                if (gameMode === 'ai') {
+                    status = (game.turn() === 'w') ? t.your_turn_w : t.ai_thinking;
+                } else {
+                    // 2 kishilik rejimda oq tarafga ham, qora tarafga ham alohida "Sizning navbatingiz" yozuvi
+                    status = (game.turn() === 'w') ? t.your_turn_w : t.your_turn_b;
+                }
+                if (game.in_check()) {
+                    status += t.check;
+                }
+            }
+            $status.html(status);
+        }
+    </script>
+</body>
+</html>
